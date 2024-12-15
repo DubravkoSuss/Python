@@ -73,9 +73,6 @@ def monitor_browsers(callback):
     browser_status = {browser: {'start_time': None, 'end_time': None} for browser in supported_browsers}
     browser_activity_log = []
 
-
-
-
     try:
         while True:
             running_browsers = {proc.info['name']: proc.create_time()
@@ -197,7 +194,6 @@ class BrowserActivityGUI:
         self.stop_button.config(state=tk.DISABLED)
 
         messagebox.showinfo("Reset", "Activity log has been reset.")
-
 
 # Create and run the Tkinter GUI
 if __name__ == "__main__":
