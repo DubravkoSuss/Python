@@ -30,7 +30,7 @@ def fetch_browsing_history(browser, start_time, end_time):
     history = []
 
     try:
-        time.sleep(2)  # Wait to ensure database is unlocked
+        time.sleep(0.1)  # Wait to ensure database is unlocked
 
         conn = sqlite3.connect(profile_path)
         cursor = conn.cursor()
@@ -111,7 +111,7 @@ def monitor_browsers(callback):
                     # Reset for next session
                     browser_status[browser] = {'start_time': None, 'end_time': None}
 
-            time.sleep(1)
+            time.sleep(0.1)
 
     except KeyboardInterrupt:
         return browser_activity_log
@@ -121,6 +121,8 @@ class BrowserActivityGUI:
         self.root = root
         self.root.title("Browser Activity Monitor")
         self.root.geometry("800x600")
+        self.root = root
+        self.root.title("Browser Monitoring")
 
         self.activity_log = []
 
@@ -133,20 +135,18 @@ class BrowserActivityGUI:
         self.tree.heading("Title", text="Title")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
-        # Button to start monitoring
-        self.start_button = tk.Button(self.root, text="Start Monitoring", command=self.start_monitoring)
-        self.start_button.pack(pady=10)
-
         # Button to stop monitoring
-        self.stop_button = tk.Button(self.root, text="Stop Monitoring", command=self.stop_monitoring, state=tk.DISABLED)
+        self.stop_button = tk.Button(self.root, text="Stop Monitoring", command=self.stop_monitoring)
         self.stop_button.pack(pady=10)
 
         # Button to reset the activity log
         self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_activity_log)
         self.reset_button.pack(pady=10)
 
+        # Start monitoring automatically
+        self.start_monitoring()
+
     def start_monitoring(self):
-        self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
 
         # Start monitoring in a separate thread
@@ -179,8 +179,6 @@ class BrowserActivityGUI:
                     title
                 ))
 
-        messagebox.showinfo("Monitoring Complete", "Browser activity monitoring is complete.")
-
     def reset_activity_log(self):
         # Clear the Treeview
         for row in self.tree.get_children():
@@ -189,8 +187,7 @@ class BrowserActivityGUI:
         # Reset the activity log
         self.activity_log = []
 
-        # Re-enable the Start Monitoring button and disable the Stop Monitoring button
-        self.start_button.config(state=tk.NORMAL)
+        # Disable the Stop Monitoring button
         self.stop_button.config(state=tk.DISABLED)
 
         messagebox.showinfo("Reset", "Activity log has been reset.")
