@@ -117,7 +117,8 @@ class BrowserHistoryApp:
         self.root = root
         self.root.title("Browser History Monitor")
         self.root.geometry("900x500")
-
+        self.root.bind("<Control-a>", self.select_all)
+        
         # Create frame for Treeview and scrollbar
         frame = tk.Frame(self.root)
         frame.pack(fill=tk.BOTH, expand=True)
@@ -168,6 +169,20 @@ class BrowserHistoryApp:
 
         for item in selected_items:
             self.tree.delete(item)
+
+    def select_all(self, event=None):
+        """
+        Select all rows in the Treeview when Ctrl+A is pressed.
+        """
+        # Clear any previous selections
+        self.tree.selection_remove(self.tree.selection())
+
+        # Select all rows
+        for item in self.tree.get_children():
+            self.tree.selection_add(item)
+
+        # Prevent default behavior of Ctrl+A in the GUI (e.g., highlighting text)
+        return "break"
 
 class BrowserMonitorApp:
     def __init__(self, root):
