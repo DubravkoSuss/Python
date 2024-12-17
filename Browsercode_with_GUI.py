@@ -118,7 +118,7 @@ class BrowserHistoryApp:
         self.root.title("Browser History Monitor")
         self.root.geometry("900x500")
         self.root.bind("<Control-a>", self.select_all)
-        
+
         # Create frame for Treeview and scrollbar
         frame = tk.Frame(self.root)
         frame.pack(fill=tk.BOTH, expand=True)
@@ -138,9 +138,16 @@ class BrowserHistoryApp:
         self.tree.column("Title", width=200)
 
         # Add vertical scrollbar
-        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        v_scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=v_scrollbar.set)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Add horizontal scrollbar
+        h_scrollbar = ttk.Scrollbar(frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(xscrollcommand=h_scrollbar.set)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        # Pack Treeview widget
         self.tree.pack(fill=tk.BOTH, expand=True)
 
         # Create delete button
