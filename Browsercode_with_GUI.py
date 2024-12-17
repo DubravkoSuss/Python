@@ -2,9 +2,8 @@ import sqlite3
 import psutil
 import time
 import tkinter as tk
-from tkinter import messagebox, ttk
-from datetime import datetime, timedelta, timezone
-from threading import Thread
+from tkinter import ttk, messagebox
+from datetime import datetime
 
 # List of supported browser names
 supported_browsers = ['firefox.exe', 'chrome.exe', 'msedge.exe']
@@ -66,134 +65,153 @@ def fetch_browsing_history(browser, start_time, end_time):
 
     return history
 
-def monitor_browsers(callback):
+def monitor_browsers(update_table_callback):
     """
-    Monitor browsers and fetch their activity when they are closed.
+    Monitor browsers and send their browsing history to the GUI when closed.
     """
     browser_status = {browser: {'start_time': None, 'end_time': None} for browser in supported_browsers}
-    browser_activity_log = []
 
     try:
         while True:
+            # Get the list of currently running browsers
             running_browsers = {proc.info['name']: proc.create_time()
                                 for proc in psutil.process_iter(attrs=['name', 'create_time'])
                                 if proc.info['name'] in supported_browsers}
-
 
             # Detect browser start
             for browser in running_browsers:
                 if browser_status[browser]['start_time'] is None:
                     browser_status[browser]['start_time'] = datetime.fromtimestamp(running_browsers[browser])
 
-            # Detect browser end and fetch history
-            for browser in browser_status:
-                if browser not in running_browsers and browser_status[browser]['start_time'] is not None and \
-                        browser_status[browser]['end_time'] is None:
-                    browser_status[browser]['end_time'] = datetime.now()
-
-                    # Log the session
-                    browser_activity_log.append({
-                        'browser': browser,
-                        'start_time': browser_status[browser]['start_time'],
-                        'end_time': browser_status[browser]['end_time']
-                    })
+            # Detect browser close and fetch history
+            for browser, status in browser_status.items():
+                if browser not in running_browsers and status['start_time'] is not None and status['end_time'] is None:
+                    # Mark browser as closed
+                    status['end_time'] = datetime.now()
 
                     # Fetch browsing history
-                    history = fetch_browsing_history(
-                        browser,
-                        browser_status[browser]['start_time'],
-                        browser_status[browser]['end_time']
-                    )
+                    history = fetch_browsing_history(browser, status['start_time'], status['end_time'])
 
-                    # Send the new data to the GUI
-                    callback(browser_activity_log, history)
+                    # Update the table in GUI
+                    update_table_callback(browser, status['start_time'], status['end_time'], history)
 
-                    # Reset for next session
+                    # Reset browser status
                     browser_status[browser] = {'start_time': None, 'end_time': None}
 
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        return browser_activity_log
+        print("\nMonitoring stopped.")
 
-class BrowserActivityGUI:
+def start_monitoring_thread(update_table_callback):
+    """
+    Start a thread to monitor browsers.
+    """
+    import threading
+    thread = threading.Thread(target=monitor_browsers, args=(update_table_callback,), daemon=True)
+    thread.start()
+
+# GUI
+class BrowserHistoryApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Browser Activity Monitor")
-        self.root.geometry("800x600")
-        self.root = root
-        self.root.title("Browser Monitoring")
+        self.root.title("Browser History Monitor")
+        self.root.geometry("900x500")
 
-        self.activity_log = []
+        # Create frame for Treeview and scrollbar
+        frame = tk.Frame(self.root)
+        frame.pack(fill=tk.BOTH, expand=True)
 
-        # Setup Treeview for displaying browser activity log
-        self.tree = ttk.Treeview(self.root, columns=("Browser", "Start Time", "End Time", "URL", "Title"), show="headings")
+        # Create Treeview for displaying browsing history
+        self.tree = ttk.Treeview(frame, columns=("Browser", "Start Time", "End Time", "URL", "Title"), show='headings')
         self.tree.heading("Browser", text="Browser")
         self.tree.heading("Start Time", text="Start Time")
         self.tree.heading("End Time", text="End Time")
         self.tree.heading("URL", text="URL")
         self.tree.heading("Title", text="Title")
+
+        self.tree.column("Browser", width=100)
+        self.tree.column("Start Time", width=150)
+        self.tree.column("End Time", width=150)
+        self.tree.column("URL", width=300)
+        self.tree.column("Title", width=200)
+
+        # Add vertical scrollbar
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.pack(fill=tk.BOTH, expand=True)
 
-        # Button to stop monitoring
-        self.stop_button = tk.Button(self.root, text="Stop Monitoring", command=self.stop_monitoring)
-        self.stop_button.pack(pady=10)
+        # Create delete button
+        delete_button = tk.Button(self.root, text="Delete Selected", command=self.delete_selected)
+        delete_button.pack(pady=10)
 
-        # Button to reset the activity log
-        self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_activity_log)
-        self.reset_button.pack(pady=10)
+        # Start monitoring browsers
+        start_monitoring_thread(self.update_table)
 
-        # Start monitoring automatically
-        self.start_monitoring()
+    def update_table(self, browser, start_time, end_time, history):
+        """
+        Update the Treeview with new browsing history.
+        """
+        for entry in history:
+            url, title = entry[0], entry[1]
+            self.tree.insert("", tk.END, values=(browser, start_time, end_time, url, title))
 
-    def start_monitoring(self):
-        self.stop_button.config(state=tk.NORMAL)
+    def delete_selected(self):
+        """
+        Delete selected rows from the Treeview.
+        """
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showinfo("Info", "No items selected to delete.")
+            return
 
-        # Start monitoring in a separate thread
-        monitoring_thread = Thread(target=self.monitor_browsers_thread)
-        monitoring_thread.daemon = True
-        monitoring_thread.start()
+        for item in selected_items:
+            self.tree.delete(item)
 
-    def stop_monitoring(self):
-        self.stop_button.config(state=tk.DISABLED)
-        messagebox.showinfo("Stopped", "Monitoring has been stopped.")
+class BrowserMonitorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Browser Monitor")
 
-    def monitor_browsers_thread(self):
-        # Start browser monitoring in the background
-        monitor_browsers(self.update_activity_log)
+        # Create a Treeview widget (table)
+        self.tree = ttk.Treeview(root, columns=("Browser", "Status"), show="headings", height=5)
+        self.tree.heading("Browser", text="Browser")
+        self.tree.heading("Status", text="Status")
 
-    def update_activity_log(self, browser_activity_log, history):
-        # Clear the current treeview data
-        for row in self.tree.get_children():
-            self.tree.delete(row)
+        # Add browsers to the table with initial status
+        for browser in supported_browsers:
+            self.tree.insert("", "end", values=(browser.capitalize(), "Checking..."))
 
-        # Add the new data to the treeview
-        for entry in browser_activity_log:
-            for url, title, timestamp in history:
-                visit_time = datetime.fromtimestamp(timestamp / 1_000_000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                self.tree.insert("", "end", values=(
-                    entry['browser'],
-                    entry['start_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                    entry['end_time'].strftime('%Y-%m-%d %H:%M:%S'),
-                    url,
-                    title
-                ))
+        self.tree.pack(pady=20)
 
-    def reset_activity_log(self):
-        # Clear the Treeview
-        for row in self.tree.get_children():
-            self.tree.delete(row)
+        # Start the monitoring in the background
+        self.monitor_browsers()
 
-        # Reset the activity log
-        self.activity_log = []
+    def is_browser_running(self):
+        """Check if any of the listed browsers are running."""
+        running_browsers = []
+        for process in psutil.process_iter(['pid', 'name']):
+            for browser in supported_browsers:
+                if browser in process.info['name'].lower():
+                    running_browsers.append(browser)
+        return running_browsers
 
-        # Disable the Stop Monitoring button
-        self.stop_button.config(state=tk.DISABLED)
+    def monitor_browsers(self):
+        """Check browsers and update the table accordingly."""
+        current_browsers = self.is_browser_running()
 
-        messagebox.showinfo("Reset", "Activity log has been reset.")
+        # Update the table with the current status of each browser
+        for i, browser in enumerate(supported_browsers):
+            status = "Running" if browser in current_browsers else "Not Running"
+            self.tree.item(self.tree.get_children()[i], values=(browser.capitalize(), status))
+
+        # Re-run the monitor every 1 second
+        self.root.after(1000, self.monitor_browsers)
 
 # Create and run the Tkinter GUI
 if __name__ == "__main__":
     root = tk.Tk()
-    gui = BrowserActivityGUI(root)
+    gui = BrowserHistoryApp(root)
+    app = BrowserMonitorApp(root)
     root.mainloop()
